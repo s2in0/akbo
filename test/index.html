@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>악보뷰어 기기 테스트</title>
+<style>
+  :root {
+    --bg: #14161a; --panel: #1f232a; --line: #343a44;
+    --text: #f2f2f2; --muted: #9aa3ad; --ok: #3ccf6e; --wait: #f0b429; --no: #ef5350;
+    --accent: #4da3ff;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font-family: "Noto Sans KR", "Malgun Gothic", sans-serif; }
+  body { overflow: hidden; }
+  .wrap { display: flex; height: 100%; padding: 24px; }
+  .col { display: flex; flex-direction: column; min-width: 0; }
+  .left { flex: 3; margin-right: 24px; }
+  .right { flex: 2; }
+  h1 { font-size: 30px; margin: 0 0 16px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    padding: 18px 22px; margin-bottom: 18px; }
+  .panel h2 { font-size: 22px; margin: 0 0 10px; color: var(--muted); font-weight: 600; }
+
+  /* 결과 요약 */
+  .sum { display: flex; }
+  .sum .item { flex: 1; text-align: center; padding: 12px 6px; border-radius: 10px;
+    background: #262b33; margin-right: 12px; }
+  .sum .item:last-child { margin-right: 0; }
+  .sum .name { font-size: 20px; margin-bottom: 6px; }
+  .sum .state { font-size: 26px; font-weight: 700; }
+  .ok { color: var(--ok); } .wait { color: var(--wait); } .no { color: var(--no); }
+
+  /* 키 표시 */
+  .bigkey { font-size: 72px; font-weight: 800; text-align: center; line-height: 1.1;
+    padding: 18px 0 8px; color: var(--accent); min-height: 110px; word-break: break-all; }
+  .keydetail { font-size: 22px; text-align: center; color: var(--muted); min-height: 30px; }
+  .flash { animation: flash .35s ease-out; }
+  @keyframes flash { from { background: #2f4f7a; } to { background: var(--panel); } }
+
+  .log { flex: 1; overflow-y: auto; font-family: Consolas, monospace; font-size: 18px;
+    background: #101215; border-radius: 10px; padding: 10px 14px; min-height: 0; }
+  .log div { padding: 3px 0; border-bottom: 1px solid #1d2026; white-space: nowrap; }
+  .logpanel { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+
+  button { font: inherit; font-size: 22px; padding: 14px 22px; border-radius: 10px;
+    border: 2px solid var(--line); background: #2a3039; color: var(--text); cursor: pointer;
+    margin: 0 10px 10px 0; }
+  button:focus { outline: none; border-color: var(--accent); background: #2f4f7a; }
+  p.help { font-size: 19px; line-height: 1.55; margin: 6px 0; color: #cfd6dd; }
+  .info { font-size: 16px; color: var(--muted); word-break: break-all; line-height: 1.5; }
+  input[type=file] { display: none; }
+  #fileResult { font-size: 20px; margin-top: 6px; line-height: 1.5; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="col left">
+    <h1>악보뷰어 기기 테스트</h1>
+
+    <div class="panel">
+      <h2>결과 요약</h2>
+      <div class="sum">
+        <div class="item"><div class="name">① 페이지터너 버튼</div><div class="state wait" id="sKey">대기</div></div>
+        <div class="item"><div class="name">② USB 파일 열기</div><div class="state wait" id="sUsb">대기</div></div>
+        <div class="item"><div class="name">③ 인터넷 없이 열기</div><div class="state wait" id="sOff">대기</div></div>
+      </div>
+    </div>
+
+    <div class="panel" id="keyPanel">
+      <h2>① 프로기 플러스 버튼을 눌러 보세요</h2>
+      <div class="bigkey" id="bigKey">—</div>
+      <div class="keydetail" id="keyDetail">버튼 신호가 들어오면 여기에 크게 표시됩니다</div>
+    </div>
+
+    <div class="panel logpanel">
+      <h2>받은 신호 기록 (최근 순)</h2>
+      <div class="log" id="log"></div>
+    </div>
+  </div>
+
+  <div class="col right">
+    <div class="panel">
+      <h2>② USB 테스트</h2>
+      <p class="help">USB에 PDF 악보를 넣어 TV에 꽂고, 아래 버튼을 눌러 USB 안의 PDF를 골라 보세요.</p>
+      <button id="btnFile">USB에서 PDF 고르기</button>
+      <input type="file" id="fileInput" accept="application/pdf,.pdf">
+      <div id="fileResult" class="info"></div>
+    </div>
+
+    <div class="panel">
+      <h2>③ 오프라인 테스트</h2>
+      <p class="help" id="offStatus">확인 중…</p>
+      <p class="help">아래 상태가 <b class="ok">준비 완료</b>가 되면 → TV의 Wi-Fi를 끄고 → 브라우저를 껐다가 즐겨찾기로 다시 열어 보세요. 다시 열리면 성공입니다.</p>
+      <button id="btnReload">새로고침</button>
+    </div>
+
+    <div class="panel">
+      <h2>기타</h2>
+      <button id="btnClear">기록 지우기</button>
+      <div class="info" id="envInfo"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var STORE = 'akbo-keytest-v1';
+  var state = loadState();
+
+  function loadState() {
+    try {
+      var s = JSON.parse(localStorage.getItem(STORE) || 'null');
+      if (s && s.log) return s;
+    } catch (e) {}
+    return { key: false, usb: false, off: false, log: [] };
+  }
+  function saveState() {
+    try { localStorage.setItem(STORE, JSON.stringify(state)); } catch (e) {}
+  }
+
+  var $ = function (id) { return document.getElementById(id); };
+  var logEl = $('log');
+
+  function setSum(id, ok, text) {
+    var el = $(id);
+    el.className = 'state ' + (ok === true ? 'ok' : ok === false ? 'no' : 'wait');
+    el.textContent = text;
+  }
+  function renderSum() {
+    setSum('sKey', state.key ? true : null, state.key ? '됨 ✔' : '대기');
+    setSum('sUsb', state.usb === true ? true : state.usb === 'fail' ? false : null,
+      state.usb === true ? '됨 ✔' : state.usb === 'fail' ? '안 됨' : '대기');
+    setSum('sOff', state.off ? true : null, state.off ? '됨 ✔' : '대기');
+  }
+
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function now() {
+    var d = new Date();
+    return pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+  }
+  function addLog(text) {
+    state.log.unshift(now() + '  ' + text);
+    if (state.log.length > 200) state.log.length = 200;
+    saveState();
+    renderLog();
+  }
+  function renderLog() {
+    var html = '';
+    for (var i = 0; i < state.log.length; i++) {
+      html += '<div>' + state.log[i].replace(/</g, '&lt;') + '</div>';
+    }
+    logEl.innerHTML = html;
+  }
+
+  // 사람이 읽기 쉬운 이름
+  var NAMES = {
+    ArrowRight: '→ 오른쪽', ArrowLeft: '← 왼쪽', ArrowUp: '↑ 위', ArrowDown: '↓ 아래',
+    PageDown: 'Page Down', PageUp: 'Page Up', ' ': '스페이스', Enter: 'Enter(확인)',
+    Backspace: 'Backspace', Escape: 'Esc', Home: 'Home', End: 'End',
+    MediaPlayPause: '재생/일시정지', MediaTrackNext: '다음 곡', MediaTrackPrevious: '이전 곡',
+    AudioVolumeUp: '볼륨 +', AudioVolumeDown: '볼륨 -'
+  };
+  var CODE_NAMES = { 37: '← 왼쪽', 38: '↑ 위', 39: '→ 오른쪽', 40: '↓ 아래', 33: 'Page Up',
+    34: 'Page Down', 32: '스페이스', 13: 'Enter(확인)', 461: '뒤로(LG 리모컨)', 10009: '뒤로(삼성 리모컨)',
+    175: '볼륨 +', 174: '볼륨 -', 176: '다음 곡', 177: '이전 곡', 179: '재생/일시정지' };
+
+  var lastDown = 0;
+  function showKey(e) {
+    var label = NAMES[e.key] || CODE_NAMES[e.keyCode] || e.key || ('코드 ' + e.keyCode);
+    $('bigKey').textContent = label;
+    var gap = lastDown ? Math.round(performance.now() - lastDown) : 0;
+    lastDown = performance.now();
+    $('keyDetail').textContent = 'key=' + e.key + '   code=' + e.code + '   keyCode=' + e.keyCode +
+      (e.repeat ? '   (길게 누름)' : '') + (gap ? '   직전 신호와 간격 ' + gap + 'ms' : '');
+    var p = $('keyPanel');
+    p.classList.remove('flash'); void p.offsetWidth; p.classList.add('flash');
+  }
+
+  window.addEventListener('keydown', function (e) {
+    showKey(e);
+    addLog('키 누름   key=' + e.key + '  code=' + e.code + '  keyCode=' + e.keyCode + (e.repeat ? '  repeat' : ''));
+    if (!state.key) { state.key = true; saveState(); renderSum(); }
+  }, true);
+  window.addEventListener('keyup', function (e) {
+    addLog('키 뗌     key=' + e.key + '  keyCode=' + e.keyCode);
+  }, true);
+
+  // 일부 페이지터너는 마우스·스크롤 신호를 보냄
+  var wheelTimer = 0;
+  window.addEventListener('wheel', function (e) {
+    if (wheelTimer) return;
+    wheelTimer = setTimeout(function () { wheelTimer = 0; }, 300);
+    $('bigKey').textContent = e.deltaY > 0 ? '스크롤 ↓' : '스크롤 ↑';
+    $('keyDetail').textContent = '마우스 휠 신호 (deltaY=' + Math.round(e.deltaY) + ')';
+    addLog('마우스 휠  deltaY=' + Math.round(e.deltaY));
+    if (!state.key) { state.key = true; saveState(); renderSum(); }
+  }, { passive: true });
+  window.addEventListener('mousedown', function (e) {
+    addLog('마우스 클릭  button=' + e.button + '  x=' + e.clientX + ' y=' + e.clientY);
+  }, true);
+
+  // ② USB
+  $('btnFile').addEventListener('click', function () { $('fileInput').click(); });
+  $('fileInput').addEventListener('change', function () {
+    var f = this.files && this.files[0];
+    if (!f) { $('fileResult').textContent = '파일을 고르지 않았습니다.'; return; }
+    var kb = Math.round(f.size / 1024);
+    $('fileResult').textContent = '읽는 중… ' + f.name;
+    var r = new FileReader();
+    r.onload = function () {
+      var b = new Uint8Array(r.result);
+      var head = String.fromCharCode(b[0], b[1], b[2], b[3], b[4]);
+      if (head === '%PDF-') {
+        $('fileResult').innerHTML = '<span class="ok">PDF를 정상적으로 읽었습니다 ✔</span><br>' +
+          f.name.replace(/</g, '&lt;') + ' (' + kb + ' KB)';
+        state.usb = true;
+        addLog('USB 파일 읽기 성공  ' + f.name + ' (' + kb + ' KB)');
+      } else {
+        $('fileResult').innerHTML = '<span class="wait">파일은 열렸지만 PDF가 아닌 것 같습니다.</span><br>' +
+          f.name.replace(/</g, '&lt;');
+        state.usb = true;
+        addLog('USB 파일 열림(PDF 아님)  ' + f.name);
+      }
+      saveState(); renderSum();
+    };
+    r.onerror = function () {
+      $('fileResult').innerHTML = '<span class="no">파일을 읽지 못했습니다.</span>';
+      state.usb = 'fail'; saveState(); renderSum();
+      addLog('USB 파일 읽기 실패');
+    };
+    r.readAsArrayBuffer(f.slice(0, 1024));
+  });
+
+  // ③ 오프라인
+  function offText(html) { $('offStatus').innerHTML = html; }
+  if (!('serviceWorker' in navigator)) {
+    offText('<span class="no">이 브라우저는 오프라인 저장 기능(서비스 워커)을 지원하지 않습니다.</span>');
+    setSum('sOff', false, '미지원');
+  } else if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+    offText('<span class="no">https 주소에서 열어야 오프라인 테스트가 됩니다.</span>');
+  } else {
+    navigator.serviceWorker.register('sw.js').then(function (reg) {
+      return navigator.serviceWorker.ready;
+    }).then(function () {
+      var controlled = !!navigator.serviceWorker.controller;
+      if (!navigator.onLine && controlled) {
+        state.off = true; saveState(); renderSum();
+        addLog('인터넷 없이 열기 성공');
+        offText('<span class="ok">지금 인터넷 없이 열렸습니다 ✔ 오프라인 성공!</span>');
+      } else if (controlled) {
+        offText('<span class="ok">준비 완료</span> — 이제 Wi-Fi를 끄고 다시 열어 보세요. (현재 인터넷: ' +
+          (navigator.onLine ? '연결됨' : '끊김') + ')');
+      } else {
+        offText('<span class="wait">저장 완료. 새로고침을 한 번 눌러 주세요.</span>');
+      }
+    }).catch(function (err) {
+      offText('<span class="no">오프라인 저장 실패: ' + String(err && err.message || err) + '</span>');
+    });
+  }
+  window.addEventListener('online', function () { addLog('인터넷 연결됨'); });
+  window.addEventListener('offline', function () { addLog('인터넷 끊김'); });
+
+  $('btnReload').addEventListener('click', function () { location.reload(); });
+  $('btnClear').addEventListener('click', function () {
+    state = { key: false, usb: false, off: false, log: [] };
+    saveState(); renderSum(); renderLog();
+    $('bigKey').textContent = '—';
+    $('keyDetail').textContent = '버튼 신호가 들어오면 여기에 크게 표시됩니다';
+  });
+
+  // 기기 정보
+  var storageOk = false;
+  try { localStorage.setItem('__t', '1'); storageOk = localStorage.getItem('__t') === '1'; } catch (e) {}
+  $('envInfo').innerHTML = '화면 ' + screen.width + '×' + screen.height + ' · 창 ' + innerWidth + '×' + innerHeight +
+    ' · 배율 ' + (window.devicePixelRatio || 1) + '<br>저장소: ' + (storageOk ? '사용 가능' : '사용 불가') +
+    ' · IndexedDB: ' + ('indexedDB' in window ? '있음' : '없음') +
+    '<br>' + navigator.userAgent.replace(/</g, '&lt;');
+
+  renderSum(); renderLog();
+  $('btnFile').focus();
+})();
+</script>
+</body>
+</html>
